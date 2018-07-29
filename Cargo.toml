@@ -1,0 +1,15 @@
+[package]
+name = "shared-cow"
+version = "0.1.0"
+authors = ["YOSHIOKA Takuma <lo48576@hard-wi.red>"]
+license = "MIT/Apache-2.0"
+readme = "README.md"
+description = "Shared clone-on-write type"
+repository = "https://github.com/lo48576/shared-cow"
+keywords = ["cow"]
+
+[dependencies]
+
+[badges]
+maintenance = { status = "experimental" }
+travis-ci = { repository = "lo48576/shared-cow" }

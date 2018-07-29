@@ -1,0 +1,6 @@
+# Config for rustfmt 0.9.0-nightly (69ad879 2018-07-27).
+required_version = "0.9.0"
+unstable_features = true
+
+match_block_trailing_comma = true
+trailing_comma = "Vertical"  # Default.
