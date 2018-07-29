@@ -1,3 +1,5 @@
+cargo-features = ["edition"]
+
 [package]
 name = "shared-cow"
 version = "0.1.0"
@@ -7,6 +9,7 @@ readme = "README.md"
 description = "Shared clone-on-write type"
 repository = "https://github.com/lo48576/shared-cow"
 keywords = ["cow"]
+edition = "2018"
 
 [dependencies]
 
