@@ -5,8 +5,10 @@
 #![warn(rust_2018_idioms)]
 
 pub use crate::arc_cow::ArcCow;
+pub use crate::rc_cow::RcCow;
 
 #[macro_use]
 mod macros;
 
 mod arc_cow;
+mod rc_cow;
