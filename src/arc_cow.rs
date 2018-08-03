@@ -111,90 +111,111 @@ macro_rules! impl_cmp {
     };
 }
 
-/// `Cow` with variant with shared `Arc` data.
-pub enum ArcCow<'a, B>
-where
-    B: 'a + ToOwned + ?Sized,
-{
-    /// Borrowed data.
-    Borrowed(&'a B),
-    /// Owned data.
-    Owned(<B as ToOwned>::Owned),
-    /// Shared data.
-    Shared(Arc<B>),
+macro_rules! def_shared_cow {
+    ($(#[$meta:meta])* def $cow:ident<$typ:ident>($rc:ty);) => {
+        $(#[$meta])*
+        pub enum $cow<'a, $typ>
+        where
+            $typ: 'a + ToOwned + ?Sized,
+        {
+            /// Borrowed data.
+            Borrowed(&'a $typ),
+            /// Owned data.
+            Owned(<$typ as ToOwned>::Owned),
+            /// Shared data.
+            Shared($rc),
+        }
+    };
 }
 
-impl<'a, B> ArcCow<'a, B>
-where
-    B: 'a + ToOwned + ?Sized,
-{
-    /// Creates a new owned value.
-    ///
-    /// This always clones the value.
-    pub fn to_owned(&self) -> <B as ToOwned>::Owned {
-        let b: &B = self.borrow();
-        b.to_owned()
-    }
+macro_rules! impl_cow_basic {
+    ($cow:ident<$typ:ident>($rc:ty)) => {
+        impl<'a, $typ> $cow<'a, $typ>
+        where
+            $typ: 'a + ToOwned + ?Sized,
+        {
+            /// Creates a new owned value.
+            ///
+            /// This always clones the value.
+            pub fn to_owned(&self) -> <$typ as ToOwned>::Owned {
+                let b: &$typ = self.borrow();
+                b.to_owned()
+            }
 
-    /// Creates a new owned value.
-    ///
-    /// This behaves like [`Cow::into_owned`].
-    /// This clones the value if necessary.
-    pub fn into_owned(self) -> <B as ToOwned>::Owned {
-        match self {
-            ArcCow::Borrowed(borrowed) => borrowed.to_owned(),
-            ArcCow::Owned(owned) => owned,
-            ArcCow::Shared(shared) => (*shared).to_owned(),
-        }
-    }
+            /// Creates a new owned value.
+            ///
+            /// This behaves like [`Cow::into_owned`].
+            /// This clones the value if necessary.
+            pub fn into_owned(self) -> <$typ as ToOwned>::Owned {
+                match self {
+                    $cow::Borrowed(borrowed) => borrowed.to_owned(),
+                    $cow::Owned(owned) => owned,
+                    $cow::Shared(shared) => (*shared).to_owned(),
+                }
+            }
 
-    /// Returns mutable reference to the `Owned(_)` value.
-    ///
-    /// This behaves like [`Cow::to_mut`].
-    /// This clones the value if necessary.
-    #[allow(unknown_lints, wrong_self_convention)]
-    pub fn to_mut(&mut self) -> &mut <B as ToOwned>::Owned {
-        *self = ArcCow::Owned(self.to_owned());
-        match *self {
-            ArcCow::Owned(ref mut owned) => owned,
-            _ => unreachable!("Should never happen because `*self` must be `Owned` variant"),
+            /// Returns mutable reference to the `Owned(_)` value.
+            ///
+            /// This behaves like [`Cow::to_mut`].
+            /// This clones the value if necessary.
+            #[allow(unknown_lints, wrong_self_convention)]
+            pub fn to_mut(&mut self) -> &mut <$typ as ToOwned>::Owned {
+                *self = $cow::Owned(self.to_owned());
+                match *self {
+                    $cow::Owned(ref mut owned) => owned,
+                    _ => {
+                        unreachable!("Should never happen because `*self` must be `Owned` variant")
+                    },
+                }
+            }
         }
-    }
+    };
 }
 
-impl<'a, B> ArcCow<'a, B>
-where
-    B: 'a + ToOwned + ?Sized,
-    for<'b> Arc<B>: From<&'b B> + From<<B as ToOwned>::Owned>,
-{
-    /// Creates a new shared value.
-    ///
-    /// This clones the value if necessary.
-    pub fn into_shared(self) -> Arc<B> {
-        match self {
-            ArcCow::Borrowed(borrowed) => From::from(borrowed),
-            ArcCow::Owned(owned) => From::from(owned),
-            ArcCow::Shared(shared) => shared,
+macro_rules! impl_cow_to_shared {
+    ($cow:ident<$typ:ident>($rc:ty)) => {
+        impl<'a, $typ> $cow<'a, $typ>
+        where
+            $typ: 'a + ToOwned + ?Sized,
+            for<'b> $rc: From<&'b $typ> + From<<$typ as ToOwned>::Owned>,
+        {
+            /// Creates a new shared value.
+            ///
+            /// This clones the value if necessary.
+            pub fn into_shared(self) -> $rc {
+                match self {
+                    $cow::Borrowed(borrowed) => From::from(borrowed),
+                    $cow::Owned(owned) => From::from(owned),
+                    $cow::Shared(shared) => shared,
+                }
+            }
         }
-    }
+
+        impl<'a, $typ> $cow<'a, $typ>
+        where
+            $typ: 'a + ToOwned + ?Sized,
+            for<'b> &'b $typ: Into<$rc>,
+        {
+            /// Creates a new shared value.
+            ///
+            /// This always clones the value.
+            pub fn to_shared(&self) -> $rc {
+                match self {
+                    $cow::Borrowed(borrowed) => (*borrowed).into(),
+                    $cow::Owned(owned) => owned.borrow().into(),
+                    $cow::Shared(shared) => Clone::clone(shared),
+                }
+            }
+        }
+    };
 }
 
-impl<'a, B> ArcCow<'a, B>
-where
-    B: 'a + ToOwned + ?Sized,
-    for<'b> &'b B: Into<Arc<B>>,
-{
-    /// Creates a new shared value.
-    ///
-    /// This always clones the value.
-    pub fn to_shared(&self) -> Arc<B> {
-        match self {
-            ArcCow::Borrowed(borrowed) => (*borrowed).into(),
-            ArcCow::Owned(owned) => owned.borrow().into(),
-            ArcCow::Shared(shared) => Clone::clone(shared),
-        }
-    }
+def_shared_cow! {
+    #[doc = "`Cow` with variant with shared `Arc` data."]
+    def ArcCow<B>(Arc<B>);
 }
+impl_cow_basic! { ArcCow<B>(Arc<B>) }
+impl_cow_to_shared! { ArcCow<B>(Arc<B>) }
 
 impl<'a, T> From<&'a [T]> for ArcCow<'a, [T]>
 where
