@@ -6,4 +6,7 @@
 
 pub use crate::arc_cow::ArcCow;
 
+#[macro_use]
+mod macros;
+
 mod arc_cow;
