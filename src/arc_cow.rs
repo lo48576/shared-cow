@@ -210,198 +210,263 @@ macro_rules! impl_cow_to_shared {
     };
 }
 
-def_shared_cow! {
-    #[doc = "`Cow` with variant with shared `Arc` data."]
-    pub def ArcCow<B>(Arc<B>);
-}
-impl_cow_basic! { ArcCow<B>(Arc<B>) }
-impl_cow_to_shared! { ArcCow<B>(Arc<B>) }
-
-impl<'a, T> From<&'a [T]> for ArcCow<'a, [T]>
-where
-    T: Clone,
-{
-    fn from(v: &'a [T]) -> Self {
-        ArcCow::Borrowed(v)
-    }
-}
-
-impl<'a, T> Into<Vec<T>> for ArcCow<'a, [T]>
-where
-    [T]: ToOwned<Owned = Vec<T>>,
-{
-    fn into(self) -> Vec<T> {
-        self.into_owned()
-    }
-}
-
-impl<'a, T> From<Vec<T>> for ArcCow<'a, [T]>
-where
-    T: Clone,
-{
-    fn from(v: Vec<T>) -> Self {
-        ArcCow::Owned(v)
-    }
-}
-
-impl<'a, T> From<&'a Vec<T>> for ArcCow<'a, [T]>
-where
-    T: Clone,
-{
-    fn from(v: &'a Vec<T>) -> Self {
-        ArcCow::Owned(v.clone())
-    }
-}
-
-impl<'a, B> AsRef<B> for ArcCow<'a, B>
-where
-    B: 'a + ToOwned + ?Sized,
-{
-    fn as_ref(&self) -> &B {
-        self
-    }
-}
-
-impl<'a, B> Borrow<B> for ArcCow<'a, B>
-where
-    B: 'a + ToOwned + ?Sized,
-{
-    fn borrow(&self) -> &B {
-        &**self
-    }
-}
-
-impl<'a, B> Clone for ArcCow<'a, B>
-where
-    B: 'a + ToOwned + ?Sized,
-{
-    fn clone(&self) -> Self {
-        match self {
-            ArcCow::Borrowed(b) => ArcCow::Borrowed(b),
-            ArcCow::Owned(o) => ArcCow::Owned(o.borrow().to_owned()),
-            ArcCow::Shared(s) => ArcCow::Shared(Clone::clone(s)),
+macro_rules! impl_cow_std_traits {
+    ($cow:ident<$typ:ident>($rc:ty)) => {
+        impl<'a, T> From<&'a [T]> for $cow<'a, [T]>
+        where
+            T: Clone,
+        {
+            fn from(v: &'a [T]) -> Self {
+                $cow::Borrowed(v)
+            }
         }
-    }
-}
 
-impl<'a> From<ArcCow<'a, str>> for Box<dyn std::error::Error> {
-    fn from(err: ArcCow<'a, str>) -> Self {
-        let err: String = err.into();
-        From::from(err)
-    }
-}
-
-impl<'a, 'b> From<ArcCow<'b, str>> for Box<dyn std::error::Error + Send + Sync + 'a> {
-    fn from(err: ArcCow<'b, str>) -> Self {
-        let err: String = err.into();
-        From::from(err)
-    }
-}
-
-impl<'a, B> hash::Hash for ArcCow<'a, B>
-where
-    B: ?Sized + hash::Hash + ToOwned,
-{
-    #[inline]
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        hash::Hash::hash(&**self, state)
-    }
-}
-
-impl<'a> iter::FromIterator<char> for ArcCow<'a, str> {
-    fn from_iter<I: IntoIterator<Item = char>>(iter: I) -> Self {
-        ArcCow::Owned(iter::FromIterator::from_iter(iter))
-    }
-}
-
-impl<'a, 'b> iter::FromIterator<&'b str> for ArcCow<'a, str> {
-    fn from_iter<I: IntoIterator<Item = &'b str>>(iter: I) -> Self {
-        ArcCow::Owned(iter::FromIterator::from_iter(iter))
-    }
-}
-
-impl<'a> iter::FromIterator<String> for ArcCow<'a, str> {
-    fn from_iter<I: IntoIterator<Item = String>>(iter: I) -> Self {
-        ArcCow::Owned(iter::FromIterator::from_iter(iter))
-    }
-}
-
-impl<'a> iter::FromIterator<ArcCow<'a, str>> for String {
-    fn from_iter<I: IntoIterator<Item = ArcCow<'a, str>>>(iter: I) -> Self {
-        let mut buf = String::new();
-        buf.extend(iter);
-        buf
-    }
-}
-
-impl<'a, T> iter::FromIterator<T> for ArcCow<'a, [T]>
-where
-    T: Clone,
-{
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        ArcCow::Owned(iter::FromIterator::from_iter(iter))
-    }
-}
-
-impl<'a> Extend<ArcCow<'a, str>> for String {
-    fn extend<I: IntoIterator<Item = ArcCow<'a, str>>>(&mut self, iter: I) {
-        for s in iter {
-            self.push_str(&s);
+        impl<'a, T> Into<Vec<T>> for $cow<'a, [T]>
+        where
+            [T]: ToOwned<Owned = Vec<T>>,
+        {
+            fn into(self) -> Vec<T> {
+                self.into_owned()
+            }
         }
-    }
-}
 
-impl<'a, B> fmt::Debug for ArcCow<'a, B>
-where
-    B: fmt::Debug + ToOwned + ?Sized,
-    <B as ToOwned>::Owned: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ArcCow::Borrowed(b) => fmt::Debug::fmt(b, f),
-            ArcCow::Owned(o) => fmt::Debug::fmt(o, f),
-            ArcCow::Shared(s) => fmt::Debug::fmt(s, f),
+        impl<'a, T> From<Vec<T>> for $cow<'a, [T]>
+        where
+            T: Clone,
+        {
+            fn from(v: Vec<T>) -> Self {
+                $cow::Owned(v)
+            }
         }
-    }
-}
 
-impl<'a, B> fmt::Display for ArcCow<'a, B>
-where
-    B: fmt::Display + ToOwned + ?Sized,
-    <B as ToOwned>::Owned: fmt::Display,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ArcCow::Borrowed(b) => fmt::Display::fmt(b, f),
-            ArcCow::Owned(o) => fmt::Display::fmt(o, f),
-            ArcCow::Shared(s) => fmt::Display::fmt(s, f),
+        impl<'a, T> From<&'a Vec<T>> for $cow<'a, [T]>
+        where
+            T: Clone,
+        {
+            fn from(v: &'a Vec<T>) -> Self {
+                $cow::Owned(v.clone())
+            }
         }
-    }
-}
 
-impl<'a, B> ops::Deref for ArcCow<'a, B>
-where
-    B: 'a + ToOwned + ?Sized,
-{
-    type Target = B;
-
-    fn deref(&self) -> &B {
-        match self {
-            ArcCow::Borrowed(borrowed) => *borrowed,
-            ArcCow::Owned(owned) => owned.borrow(),
-            ArcCow::Shared(shared) => (**shared).borrow(),
+        impl<'a, B> AsRef<B> for $cow<'a, B>
+        where
+            B: 'a + ToOwned + ?Sized,
+        {
+            fn as_ref(&self) -> &B {
+                self
+            }
         }
-    }
-}
 
-impl<'a, B> Default for ArcCow<'a, B>
-where
-    B: 'a + ToOwned + ?Sized,
-    <B as ToOwned>::Owned: Default,
-{
-    fn default() -> Self {
-        ArcCow::Owned(<B as ToOwned>::Owned::default())
-    }
+        impl<'a, B> Borrow<B> for $cow<'a, B>
+        where
+            B: 'a + ToOwned + ?Sized,
+        {
+            fn borrow(&self) -> &B {
+                &**self
+            }
+        }
+
+        impl<'a, B> Clone for $cow<'a, B>
+        where
+            B: 'a + ToOwned + ?Sized,
+        {
+            fn clone(&self) -> Self {
+                match self {
+                    $cow::Borrowed(b) => $cow::Borrowed(b),
+                    $cow::Owned(o) => $cow::Owned(o.borrow().to_owned()),
+                    $cow::Shared(s) => $cow::Shared(Clone::clone(s)),
+                }
+            }
+        }
+
+        impl<'a> From<$cow<'a, str>> for Box<dyn std::error::Error> {
+            fn from(err: $cow<'a, str>) -> Self {
+                let err: String = err.into();
+                From::from(err)
+            }
+        }
+
+        impl<'a, 'b> From<$cow<'b, str>> for Box<dyn std::error::Error + Send + Sync + 'a> {
+            fn from(err: $cow<'b, str>) -> Self {
+                let err: String = err.into();
+                From::from(err)
+            }
+        }
+
+        impl<'a, B> hash::Hash for $cow<'a, B>
+        where
+            B: ?Sized + hash::Hash + ToOwned,
+        {
+            #[inline]
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
+                hash::Hash::hash(&**self, state)
+            }
+        }
+
+        impl<'a> iter::FromIterator<char> for $cow<'a, str> {
+            fn from_iter<I: IntoIterator<Item = char>>(iter: I) -> Self {
+                $cow::Owned(iter::FromIterator::from_iter(iter))
+            }
+        }
+
+        impl<'a, 'b> iter::FromIterator<&'b str> for $cow<'a, str> {
+            fn from_iter<I: IntoIterator<Item = &'b str>>(iter: I) -> Self {
+                $cow::Owned(iter::FromIterator::from_iter(iter))
+            }
+        }
+
+        impl<'a> iter::FromIterator<String> for $cow<'a, str> {
+            fn from_iter<I: IntoIterator<Item = String>>(iter: I) -> Self {
+                $cow::Owned(iter::FromIterator::from_iter(iter))
+            }
+        }
+
+        impl<'a> iter::FromIterator<$cow<'a, str>> for String {
+            fn from_iter<I: IntoIterator<Item = $cow<'a, str>>>(iter: I) -> Self {
+                let mut buf = String::new();
+                buf.extend(iter);
+                buf
+            }
+        }
+
+        impl<'a, T> iter::FromIterator<T> for $cow<'a, [T]>
+        where
+            T: Clone,
+        {
+            fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+                $cow::Owned(iter::FromIterator::from_iter(iter))
+            }
+        }
+
+        impl<'a> Extend<$cow<'a, str>> for String {
+            fn extend<I: IntoIterator<Item = $cow<'a, str>>>(&mut self, iter: I) {
+                for s in iter {
+                    self.push_str(&s);
+                }
+            }
+        }
+
+        impl<'a, B> fmt::Debug for $cow<'a, B>
+        where
+            B: fmt::Debug + ToOwned + ?Sized,
+            <B as ToOwned>::Owned: fmt::Debug,
+        {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match self {
+                    $cow::Borrowed(b) => fmt::Debug::fmt(b, f),
+                    $cow::Owned(o) => fmt::Debug::fmt(o, f),
+                    $cow::Shared(s) => fmt::Debug::fmt(s, f),
+                }
+            }
+        }
+
+        impl<'a, B> fmt::Display for $cow<'a, B>
+        where
+            B: fmt::Display + ToOwned + ?Sized,
+            <B as ToOwned>::Owned: fmt::Display,
+        {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match self {
+                    $cow::Borrowed(b) => fmt::Display::fmt(b, f),
+                    $cow::Owned(o) => fmt::Display::fmt(o, f),
+                    $cow::Shared(s) => fmt::Display::fmt(s, f),
+                }
+            }
+        }
+
+        impl<'a, B> ops::Deref for $cow<'a, B>
+        where
+            B: 'a + ToOwned + ?Sized,
+        {
+            type Target = B;
+
+            fn deref(&self) -> &B {
+                match self {
+                    $cow::Borrowed(borrowed) => *borrowed,
+                    $cow::Owned(owned) => owned.borrow(),
+                    $cow::Shared(shared) => (**shared).borrow(),
+                }
+            }
+        }
+
+        impl<'a, B> Default for $cow<'a, B>
+        where
+            B: 'a + ToOwned + ?Sized,
+            <B as ToOwned>::Owned: Default,
+        {
+            fn default() -> Self {
+                $cow::Owned(<B as ToOwned>::Owned::default())
+            }
+        }
+
+        impl<'a> ops::Add<&'a str> for $cow<'a, str> {
+            type Output = $cow<'a, str>;
+
+            fn add(mut self, rhs: &'a str) -> Self::Output {
+                self += rhs;
+                self
+            }
+        }
+
+        impl<'a> ops::Add<$cow<'a, str>> for $cow<'a, str> {
+            type Output = $cow<'a, str>;
+
+            fn add(mut self, rhs: $cow<'a, str>) -> Self::Output {
+                self += rhs;
+                self
+            }
+        }
+
+        impl<'a> ops::AddAssign<&'a str> for $cow<'a, str> {
+            fn add_assign(&mut self, rhs: &'a str) {
+                if self.is_empty() {
+                    *self = $cow::Borrowed(rhs)
+                } else if rhs.is_empty() {
+                    return;
+                } else {
+                    match *self {
+                        $cow::Borrowed(lhs) => {
+                            let mut s = String::with_capacity(rhs.len() + rhs.len());
+                            s.push_str(lhs);
+                            *self = $cow::Owned(s)
+                        },
+                        $cow::Shared(ref lhs) => {
+                            let mut s = String::with_capacity(rhs.len() + rhs.len());
+                            s.push_str(lhs);
+                            *self = $cow::Owned(s)
+                        },
+                        _ => {},
+                    }
+                    self.to_mut().push_str(rhs);
+                }
+            }
+        }
+
+        impl<'a> ops::AddAssign<$cow<'a, str>> for $cow<'a, str> {
+            fn add_assign(&mut self, rhs: $cow<'a, str>) {
+                if self.is_empty() {
+                    *self = rhs;
+                } else if rhs.is_empty() {
+                    return;
+                } else {
+                    match *self {
+                        $cow::Borrowed(lhs) => {
+                            let mut s = String::with_capacity(rhs.len() + rhs.len());
+                            s.push_str(lhs);
+                            *self = $cow::Owned(s)
+                        },
+                        $cow::Shared(ref lhs) => {
+                            let mut s = String::with_capacity(rhs.len() + rhs.len());
+                            s.push_str(lhs);
+                            *self = $cow::Owned(s)
+                        },
+                        _ => {},
+                    }
+                    self.to_mut().push_str(&rhs);
+                }
+            }
+        }
+    };
 }
 
 impl<'a, 'b, A, B> PartialEq<ArcCow<'b, B>> for ArcCow<'a, A>
@@ -453,73 +518,13 @@ where
     }
 }
 
-impl<'a> ops::Add<&'a str> for ArcCow<'a, str> {
-    type Output = ArcCow<'a, str>;
-
-    fn add(mut self, rhs: &'a str) -> Self::Output {
-        self += rhs;
-        self
-    }
+def_shared_cow! {
+    #[doc = "`Cow` with variant with shared `Arc` data."]
+    pub def ArcCow<B>(Arc<B>);
 }
-
-impl<'a> ops::Add<ArcCow<'a, str>> for ArcCow<'a, str> {
-    type Output = ArcCow<'a, str>;
-
-    fn add(mut self, rhs: ArcCow<'a, str>) -> Self::Output {
-        self += rhs;
-        self
-    }
-}
-
-impl<'a> ops::AddAssign<&'a str> for ArcCow<'a, str> {
-    fn add_assign(&mut self, rhs: &'a str) {
-        if self.is_empty() {
-            *self = ArcCow::Borrowed(rhs)
-        } else if rhs.is_empty() {
-            return;
-        } else {
-            match *self {
-                ArcCow::Borrowed(lhs) => {
-                    let mut s = String::with_capacity(rhs.len() + rhs.len());
-                    s.push_str(lhs);
-                    *self = ArcCow::Owned(s)
-                },
-                ArcCow::Shared(ref lhs) => {
-                    let mut s = String::with_capacity(rhs.len() + rhs.len());
-                    s.push_str(lhs);
-                    *self = ArcCow::Owned(s)
-                },
-                _ => {},
-            }
-            self.to_mut().push_str(rhs);
-        }
-    }
-}
-
-impl<'a> ops::AddAssign<ArcCow<'a, str>> for ArcCow<'a, str> {
-    fn add_assign(&mut self, rhs: ArcCow<'a, str>) {
-        if self.is_empty() {
-            *self = rhs;
-        } else if rhs.is_empty() {
-            return;
-        } else {
-            match *self {
-                ArcCow::Borrowed(lhs) => {
-                    let mut s = String::with_capacity(rhs.len() + rhs.len());
-                    s.push_str(lhs);
-                    *self = ArcCow::Owned(s)
-                },
-                ArcCow::Shared(ref lhs) => {
-                    let mut s = String::with_capacity(rhs.len() + rhs.len());
-                    s.push_str(lhs);
-                    *self = ArcCow::Owned(s)
-                },
-                _ => {},
-            }
-            self.to_mut().push_str(&rhs);
-        }
-    }
-}
+impl_cow_basic! { ArcCow<B>(Arc<B>) }
+impl_cow_to_shared! { ArcCow<B>(Arc<B>) }
+impl_cow_std_traits! { ArcCow<B>(Arc<B>) }
 
 impl_str_like! { str, String }
 impl_str_like! { Path, PathBuf }
