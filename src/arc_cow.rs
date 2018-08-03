@@ -522,14 +522,20 @@ macro_rules! impl_cow_cmp_traits {
     };
 }
 
+macro_rules! impl_cow {
+    ($cow:ident<$typ:ident>($rc:ty); <$other_typ:ident>) => {
+        impl_cow_basic! { $cow<$typ>($rc) }
+        impl_cow_to_shared! { $cow<$typ>($rc) }
+        impl_cow_std_traits! { $cow<$typ>($rc) }
+        impl_cow_cmp_traits! { $cow<$typ>($rc); <$other_typ> }
+    };
+}
+
 def_shared_cow! {
     #[doc = "`Cow` with variant with shared `Arc` data."]
     pub def ArcCow<B>(Arc<B>);
 }
-impl_cow_basic! { ArcCow<B>(Arc<B>) }
-impl_cow_to_shared! { ArcCow<B>(Arc<B>) }
-impl_cow_std_traits! { ArcCow<B>(Arc<B>) }
-impl_cow_cmp_traits! { ArcCow<B>(Arc<B>); <A> }
+impl_cow! { ArcCow<B>(Arc<B>); <A> }
 
 impl_str_like! { ArcCow, str, String }
 impl_str_like! { ArcCow, Path, PathBuf }
