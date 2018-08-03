@@ -1,7 +1,5 @@
 //! `ArcCow`.
 
-use std::sync::Arc;
-
 // See <https://github.com/rust-lang/rust/blob/1.27.2/src/liballoc/vec.rs#L2097>.
 macro_rules! impl_eq_slice {
     ($lhs:ty, $rhs:ty) => {
@@ -21,7 +19,7 @@ macro_rules! impl_eq_slice {
 }
 
 macro_rules! impl_str_like {
-    ($cow:ident, $borrowed:ty, $owned:ty) => {
+    ($cow:ident, $rc:ty, $borrowed:ty, $owned:ty) => {
         impl<'a> From<&'a $borrowed> for $cow<'a, $borrowed> {
             fn from(s: &'a $borrowed) -> Self {
                 $cow::Borrowed(s)
@@ -40,8 +38,8 @@ macro_rules! impl_str_like {
             }
         }
 
-        impl<'a> From<Arc<$borrowed>> for $cow<'a, $borrowed> {
-            fn from(s: Arc<$borrowed>) -> Self {
+        impl<'a> From<$rc> for $cow<'a, $borrowed> {
+            fn from(s: $rc) -> Self {
                 $cow::Shared(s)
             }
         }
@@ -529,10 +527,10 @@ macro_rules! impl_cow {
 
 def_shared_cow! {
     #[doc = "[`Cow`][`std::borrow::Cow`] with variant with shared [`Arc`][`std::sync::Arc`] data."]
-    pub def ArcCow<B>(Arc<B>);
+    pub def ArcCow<B>(std::sync::Arc<B>);
 }
-impl_cow! { ArcCow<B>(Arc<B>); <A> }
+impl_cow! { ArcCow<B>(std::sync::Arc<B>); <A> }
 
-impl_str_like! { ArcCow, str, String }
-impl_str_like! { ArcCow, std::path::Path, std::path::PathBuf }
-impl_str_like! { ArcCow, std::ffi::OsStr, std::ffi::OsString }
+impl_str_like! { ArcCow, std::sync::Arc<str>, str, String }
+impl_str_like! { ArcCow, std::sync::Arc<std::path::Path>, std::path::Path, std::path::PathBuf }
+impl_str_like! { ArcCow, std::sync::Arc<std::ffi::OsStr>, std::ffi::OsStr, std::ffi::OsString }
