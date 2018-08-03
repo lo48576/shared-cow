@@ -1,13 +1,5 @@
 //! `ArcCow`.
 
-use std::borrow::{Borrow, Cow};
-use std::cmp::Ordering;
-use std::ffi::{OsStr, OsString};
-use std::fmt;
-use std::hash;
-use std::iter;
-use std::ops;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 // See <https://github.com/rust-lang/rust/blob/1.27.2/src/liballoc/vec.rs#L2097>.
@@ -64,7 +56,7 @@ macro_rules! impl_str_like {
         impl_cmp! { $borrowed, $cow<'a, $borrowed>, &'b $borrowed }
         impl_cmp! { $borrowed, $cow<'a, $borrowed>, $owned }
         impl_cmp! { $borrowed, $cow<'a, $borrowed>, &'b $owned }
-        impl_cmp! { $borrowed, $cow<'a, $borrowed>, Cow<'b, $borrowed> }
+        impl_cmp! { $borrowed, $cow<'a, $borrowed>, std::borrow::Cow<'b, $borrowed> }
     };
 }
 
@@ -90,14 +82,14 @@ macro_rules! impl_partial_ord {
     ($base: ty, $lhs:ty, $rhs:ty) => {
         impl<'a, 'b> PartialOrd<$rhs> for $lhs {
             #[inline]
-            fn partial_cmp(&self, other: &$rhs) -> Option<Ordering> {
+            fn partial_cmp(&self, other: &$rhs) -> Option<std::cmp::Ordering> {
                 <$base as PartialOrd>::partial_cmp(self, other)
             }
         }
 
         impl<'a, 'b> PartialOrd<$lhs> for $rhs {
             #[inline]
-            fn partial_cmp(&self, other: &$lhs) -> Option<Ordering> {
+            fn partial_cmp(&self, other: &$lhs) -> Option<std::cmp::Ordering> {
                 <$base as PartialOrd>::partial_cmp(self, other)
             }
         }
@@ -138,13 +130,14 @@ macro_rules! impl_cow_basic {
             ///
             /// This always clones the value.
             pub fn to_owned(&self) -> <$typ as ToOwned>::Owned {
+                use std::borrow::Borrow;
                 let b: &$typ = self.borrow();
                 b.to_owned()
             }
 
             /// Creates a new owned value.
             ///
-            /// This behaves like [`Cow::into_owned`].
+            /// This behaves like [`Cow::into_owned`][`std::borrow::Cow::into_owned`].
             /// This clones the value if necessary.
             pub fn into_owned(self) -> <$typ as ToOwned>::Owned {
                 match self {
@@ -156,7 +149,7 @@ macro_rules! impl_cow_basic {
 
             /// Returns mutable reference to the `Owned(_)` value.
             ///
-            /// This behaves like [`Cow::to_mut`].
+            /// This behaves like [`Cow::to_mut`][`std::borrow::Cow::to_mut`].
             /// This clones the value if necessary.
             #[allow(unknown_lints, wrong_self_convention)]
             pub fn to_mut(&mut self) -> &mut <$typ as ToOwned>::Owned {
@@ -200,6 +193,7 @@ macro_rules! impl_cow_to_shared {
             ///
             /// This always clones the value.
             pub fn to_shared(&self) -> $rc {
+                use std::borrow::Borrow;
                 match self {
                     $cow::Borrowed(borrowed) => (*borrowed).into(),
                     $cow::Owned(owned) => owned.borrow().into(),
@@ -257,7 +251,7 @@ macro_rules! impl_cow_std_traits {
             }
         }
 
-        impl<'a, B> Borrow<B> for $cow<'a, B>
+        impl<'a, B> std::borrow::Borrow<B> for $cow<'a, B>
         where
             B: 'a + ToOwned + ?Sized,
         {
@@ -271,6 +265,7 @@ macro_rules! impl_cow_std_traits {
             B: 'a + ToOwned + ?Sized,
         {
             fn clone(&self) -> Self {
+                use std::borrow::Borrow;
                 match self {
                     $cow::Borrowed(b) => $cow::Borrowed(b),
                     $cow::Owned(o) => $cow::Owned(o.borrow().to_owned()),
@@ -293,35 +288,35 @@ macro_rules! impl_cow_std_traits {
             }
         }
 
-        impl<'a, B> hash::Hash for $cow<'a, B>
+        impl<'a, B> std::hash::Hash for $cow<'a, B>
         where
-            B: ?Sized + hash::Hash + ToOwned,
+            B: ?Sized + std::hash::Hash + ToOwned,
         {
             #[inline]
-            fn hash<H: hash::Hasher>(&self, state: &mut H) {
-                hash::Hash::hash(&**self, state)
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                std::hash::Hash::hash(&**self, state)
             }
         }
 
-        impl<'a> iter::FromIterator<char> for $cow<'a, str> {
+        impl<'a> std::iter::FromIterator<char> for $cow<'a, str> {
             fn from_iter<I: IntoIterator<Item = char>>(iter: I) -> Self {
-                $cow::Owned(iter::FromIterator::from_iter(iter))
+                $cow::Owned(std::iter::FromIterator::from_iter(iter))
             }
         }
 
-        impl<'a, 'b> iter::FromIterator<&'b str> for $cow<'a, str> {
+        impl<'a, 'b> std::iter::FromIterator<&'b str> for $cow<'a, str> {
             fn from_iter<I: IntoIterator<Item = &'b str>>(iter: I) -> Self {
-                $cow::Owned(iter::FromIterator::from_iter(iter))
+                $cow::Owned(std::iter::FromIterator::from_iter(iter))
             }
         }
 
-        impl<'a> iter::FromIterator<String> for $cow<'a, str> {
+        impl<'a> std::iter::FromIterator<String> for $cow<'a, str> {
             fn from_iter<I: IntoIterator<Item = String>>(iter: I) -> Self {
-                $cow::Owned(iter::FromIterator::from_iter(iter))
+                $cow::Owned(std::iter::FromIterator::from_iter(iter))
             }
         }
 
-        impl<'a> iter::FromIterator<$cow<'a, str>> for String {
+        impl<'a> std::iter::FromIterator<$cow<'a, str>> for String {
             fn from_iter<I: IntoIterator<Item = $cow<'a, str>>>(iter: I) -> Self {
                 let mut buf = String::new();
                 buf.extend(iter);
@@ -329,12 +324,12 @@ macro_rules! impl_cow_std_traits {
             }
         }
 
-        impl<'a, T> iter::FromIterator<T> for $cow<'a, [T]>
+        impl<'a, T> std::iter::FromIterator<T> for $cow<'a, [T]>
         where
             T: Clone,
         {
             fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-                $cow::Owned(iter::FromIterator::from_iter(iter))
+                $cow::Owned(std::iter::FromIterator::from_iter(iter))
             }
         }
 
@@ -346,41 +341,42 @@ macro_rules! impl_cow_std_traits {
             }
         }
 
-        impl<'a, B> fmt::Debug for $cow<'a, B>
+        impl<'a, B> std::fmt::Debug for $cow<'a, B>
         where
-            B: fmt::Debug + ToOwned + ?Sized,
-            <B as ToOwned>::Owned: fmt::Debug,
+            B: std::fmt::Debug + ToOwned + ?Sized,
+            <B as ToOwned>::Owned: std::fmt::Debug,
         {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 match self {
-                    $cow::Borrowed(b) => fmt::Debug::fmt(b, f),
-                    $cow::Owned(o) => fmt::Debug::fmt(o, f),
-                    $cow::Shared(s) => fmt::Debug::fmt(s, f),
+                    $cow::Borrowed(b) => std::fmt::Debug::fmt(b, f),
+                    $cow::Owned(o) => std::fmt::Debug::fmt(o, f),
+                    $cow::Shared(s) => std::fmt::Debug::fmt(s, f),
                 }
             }
         }
 
-        impl<'a, B> fmt::Display for $cow<'a, B>
+        impl<'a, B> std::fmt::Display for $cow<'a, B>
         where
-            B: fmt::Display + ToOwned + ?Sized,
-            <B as ToOwned>::Owned: fmt::Display,
+            B: std::fmt::Display + ToOwned + ?Sized,
+            <B as ToOwned>::Owned: std::fmt::Display,
         {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 match self {
-                    $cow::Borrowed(b) => fmt::Display::fmt(b, f),
-                    $cow::Owned(o) => fmt::Display::fmt(o, f),
-                    $cow::Shared(s) => fmt::Display::fmt(s, f),
+                    $cow::Borrowed(b) => std::fmt::Display::fmt(b, f),
+                    $cow::Owned(o) => std::fmt::Display::fmt(o, f),
+                    $cow::Shared(s) => std::fmt::Display::fmt(s, f),
                 }
             }
         }
 
-        impl<'a, B> ops::Deref for $cow<'a, B>
+        impl<'a, B> std::ops::Deref for $cow<'a, B>
         where
             B: 'a + ToOwned + ?Sized,
         {
             type Target = B;
 
             fn deref(&self) -> &B {
+                use std::borrow::Borrow;
                 match self {
                     $cow::Borrowed(borrowed) => *borrowed,
                     $cow::Owned(owned) => owned.borrow(),
@@ -399,7 +395,7 @@ macro_rules! impl_cow_std_traits {
             }
         }
 
-        impl<'a> ops::Add<&'a str> for $cow<'a, str> {
+        impl<'a> std::ops::Add<&'a str> for $cow<'a, str> {
             type Output = $cow<'a, str>;
 
             fn add(mut self, rhs: &'a str) -> Self::Output {
@@ -408,7 +404,7 @@ macro_rules! impl_cow_std_traits {
             }
         }
 
-        impl<'a> ops::Add<$cow<'a, str>> for $cow<'a, str> {
+        impl<'a> std::ops::Add<$cow<'a, str>> for $cow<'a, str> {
             type Output = $cow<'a, str>;
 
             fn add(mut self, rhs: $cow<'a, str>) -> Self::Output {
@@ -417,7 +413,7 @@ macro_rules! impl_cow_std_traits {
             }
         }
 
-        impl<'a> ops::AddAssign<&'a str> for $cow<'a, str> {
+        impl<'a> std::ops::AddAssign<&'a str> for $cow<'a, str> {
             fn add_assign(&mut self, rhs: &'a str) {
                 if self.is_empty() {
                     *self = $cow::Borrowed(rhs)
@@ -442,7 +438,7 @@ macro_rules! impl_cow_std_traits {
             }
         }
 
-        impl<'a> ops::AddAssign<$cow<'a, str>> for $cow<'a, str> {
+        impl<'a> std::ops::AddAssign<$cow<'a, str>> for $cow<'a, str> {
             fn add_assign(&mut self, rhs: $cow<'a, str>) {
                 if self.is_empty() {
                     *self = rhs;
@@ -487,13 +483,13 @@ macro_rules! impl_cow_cmp_traits {
         impl_eq_slice! { $cow<'a, [$other_typ]>, Vec<$typ>, Clone }
         impl_eq_slice! { $cow<'a, [$other_typ]>, &'b Vec<$typ>, Clone }
 
-        impl<'a, 'b, $other_typ, $typ> PartialEq<Cow<'b, [$typ]>> for $cow<'a, [$other_typ]>
+        impl<'a, 'b, $other_typ, $typ> PartialEq<std::borrow::Cow<'b, [$typ]>> for $cow<'a, [$other_typ]>
         where
             $other_typ: Clone + ToOwned + PartialEq<$typ>,
             $typ: Clone + ToOwned,
         {
             #[inline]
-            fn eq(&self, other: &Cow<'b, [$typ]>) -> bool {
+            fn eq(&self, other: &std::borrow::Cow<'b, [$typ]>) -> bool {
                 self[..] == other[..]
             }
         }
@@ -505,7 +501,7 @@ macro_rules! impl_cow_cmp_traits {
             $typ: ?Sized + PartialOrd + ToOwned,
         {
             #[inline]
-            fn partial_cmp(&self, other: &$cow<'a, $typ>) -> Option<Ordering> {
+            fn partial_cmp(&self, other: &$cow<'a, $typ>) -> Option<std::cmp::Ordering> {
                 PartialOrd::partial_cmp(&**self, &**other)
             }
         }
@@ -515,7 +511,7 @@ macro_rules! impl_cow_cmp_traits {
             $typ: ?Sized + Ord + ToOwned,
         {
             #[inline]
-            fn cmp(&self, other: &Self) -> Ordering {
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
                 Ord::cmp(&**self, &**other)
             }
         }
@@ -532,11 +528,11 @@ macro_rules! impl_cow {
 }
 
 def_shared_cow! {
-    #[doc = "`Cow` with variant with shared `Arc` data."]
+    #[doc = "[`Cow`][`std::borrow::Cow`] with variant with shared `Arc` data."]
     pub def ArcCow<B>(Arc<B>);
 }
 impl_cow! { ArcCow<B>(Arc<B>); <A> }
 
 impl_str_like! { ArcCow, str, String }
-impl_str_like! { ArcCow, Path, PathBuf }
-impl_str_like! { ArcCow, OsStr, OsString }
+impl_str_like! { ArcCow, std::path::Path, std::path::PathBuf }
+impl_str_like! { ArcCow, std::ffi::OsStr, std::ffi::OsString }
