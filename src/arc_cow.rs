@@ -528,7 +528,7 @@ macro_rules! impl_cow {
 }
 
 def_shared_cow! {
-    #[doc = "[`Cow`][`std::borrow::Cow`] with variant with shared `Arc` data."]
+    #[doc = "[`Cow`][`std::borrow::Cow`] with variant with shared [`Arc`][`std::sync::Arc`] data."]
     pub def ArcCow<B>(Arc<B>);
 }
 impl_cow! { ArcCow<B>(Arc<B>); <A> }
