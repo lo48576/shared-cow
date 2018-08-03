@@ -29,42 +29,42 @@ macro_rules! impl_eq_slice {
 }
 
 macro_rules! impl_str_like {
-    ($borrowed:ty, $owned:ty) => {
-        impl<'a> From<&'a $borrowed> for ArcCow<'a, $borrowed> {
+    ($cow:ident, $borrowed:ty, $owned:ty) => {
+        impl<'a> From<&'a $borrowed> for $cow<'a, $borrowed> {
             fn from(s: &'a $borrowed) -> Self {
-                ArcCow::Borrowed(s)
+                $cow::Borrowed(s)
             }
         }
 
-        impl<'a> From<$owned> for ArcCow<'a, $borrowed> {
+        impl<'a> From<$owned> for $cow<'a, $borrowed> {
             fn from(s: $owned) -> Self {
-                ArcCow::Owned(s)
+                $cow::Owned(s)
             }
         }
 
-        impl<'a> From<&'a $owned> for ArcCow<'a, $borrowed> {
+        impl<'a> From<&'a $owned> for $cow<'a, $borrowed> {
             fn from(s: &'a $owned) -> Self {
-                ArcCow::Owned(s.clone())
+                $cow::Owned(s.clone())
             }
         }
 
-        impl<'a> From<Arc<$borrowed>> for ArcCow<'a, $borrowed> {
+        impl<'a> From<Arc<$borrowed>> for $cow<'a, $borrowed> {
             fn from(s: Arc<$borrowed>) -> Self {
-                ArcCow::Shared(s)
+                $cow::Shared(s)
             }
         }
 
-        impl<'a> Into<$owned> for ArcCow<'a, $borrowed> {
+        impl<'a> Into<$owned> for $cow<'a, $borrowed> {
             fn into(self) -> $owned {
                 self.into_owned()
             }
         }
 
-        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, $borrowed }
-        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, &'b $borrowed }
-        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, $owned }
-        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, &'b $owned }
-        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, Cow<'b, $borrowed> }
+        impl_cmp! { $borrowed, $cow<'a, $borrowed>, $borrowed }
+        impl_cmp! { $borrowed, $cow<'a, $borrowed>, &'b $borrowed }
+        impl_cmp! { $borrowed, $cow<'a, $borrowed>, $owned }
+        impl_cmp! { $borrowed, $cow<'a, $borrowed>, &'b $owned }
+        impl_cmp! { $borrowed, $cow<'a, $borrowed>, Cow<'b, $borrowed> }
     };
 }
 
@@ -469,53 +469,57 @@ macro_rules! impl_cow_std_traits {
     };
 }
 
-impl<'a, 'b, A, B> PartialEq<ArcCow<'b, B>> for ArcCow<'a, A>
-where
-    A: ?Sized + PartialEq<B> + ToOwned,
-    B: ?Sized + ToOwned,
-{
-    #[inline]
-    fn eq(&self, other: &ArcCow<'b, B>) -> bool {
-        **self == **other
-    }
-}
+macro_rules! impl_cow_cmp_traits {
+    ($cow:ident<$typ:ident>($rc:ty); <$other_typ:ident>) => {
+        impl<'a, 'b, $other_typ, $typ> PartialEq<$cow<'b, $typ>> for $cow<'a, $other_typ>
+        where
+            $other_typ: ?Sized + PartialEq<$typ> + ToOwned,
+            $typ: ?Sized + ToOwned,
+        {
+            #[inline]
+            fn eq(&self, other: &$cow<'b, $typ>) -> bool {
+                **self == **other
+            }
+        }
 
-impl_eq_slice! { ArcCow<'a, [A]>, &'b [B], Clone }
-impl_eq_slice! { ArcCow<'a, [A]>, &'b mut [B], Clone }
-impl_eq_slice! { ArcCow<'a, [A]>, Vec<B>, Clone }
-impl_eq_slice! { ArcCow<'a, [A]>, &'b Vec<B>, Clone }
+        impl_eq_slice! { $cow<'a, [$other_typ]>, &'b [$typ], Clone }
+        impl_eq_slice! { $cow<'a, [$other_typ]>, &'b mut [$typ], Clone }
+        impl_eq_slice! { $cow<'a, [$other_typ]>, Vec<$typ>, Clone }
+        impl_eq_slice! { $cow<'a, [$other_typ]>, &'b Vec<$typ>, Clone }
 
-impl<'a, 'b, A, B> PartialEq<Cow<'b, [B]>> for ArcCow<'a, [A]>
-where
-    A: Clone + ToOwned + PartialEq<B>,
-    B: Clone + ToOwned,
-{
-    #[inline]
-    fn eq(&self, other: &Cow<'b, [B]>) -> bool {
-        self[..] == other[..]
-    }
-}
+        impl<'a, 'b, $other_typ, $typ> PartialEq<Cow<'b, [$typ]>> for $cow<'a, [$other_typ]>
+        where
+            $other_typ: Clone + ToOwned + PartialEq<$typ>,
+            $typ: Clone + ToOwned,
+        {
+            #[inline]
+            fn eq(&self, other: &Cow<'b, [$typ]>) -> bool {
+                self[..] == other[..]
+            }
+        }
 
-impl<'a, B> Eq for ArcCow<'a, B> where B: ?Sized + Eq + ToOwned {}
+        impl<'a, $typ> Eq for $cow<'a, $typ> where $typ: ?Sized + Eq + ToOwned {}
 
-impl<'a, B> PartialOrd for ArcCow<'a, B>
-where
-    B: ?Sized + PartialOrd + ToOwned,
-{
-    #[inline]
-    fn partial_cmp(&self, other: &ArcCow<'a, B>) -> Option<Ordering> {
-        PartialOrd::partial_cmp(&**self, &**other)
-    }
-}
+        impl<'a, $typ> PartialOrd for $cow<'a, $typ>
+        where
+            $typ: ?Sized + PartialOrd + ToOwned,
+        {
+            #[inline]
+            fn partial_cmp(&self, other: &$cow<'a, $typ>) -> Option<Ordering> {
+                PartialOrd::partial_cmp(&**self, &**other)
+            }
+        }
 
-impl<'a, B> Ord for ArcCow<'a, B>
-where
-    B: ?Sized + Ord + ToOwned,
-{
-    #[inline]
-    fn cmp(&self, other: &Self) -> Ordering {
-        Ord::cmp(&**self, &**other)
-    }
+        impl<'a, $typ> Ord for $cow<'a, $typ>
+        where
+            $typ: ?Sized + Ord + ToOwned,
+        {
+            #[inline]
+            fn cmp(&self, other: &Self) -> Ordering {
+                Ord::cmp(&**self, &**other)
+            }
+        }
+    };
 }
 
 def_shared_cow! {
@@ -525,7 +529,8 @@ def_shared_cow! {
 impl_cow_basic! { ArcCow<B>(Arc<B>) }
 impl_cow_to_shared! { ArcCow<B>(Arc<B>) }
 impl_cow_std_traits! { ArcCow<B>(Arc<B>) }
+impl_cow_cmp_traits! { ArcCow<B>(Arc<B>); <A> }
 
-impl_str_like! { str, String }
-impl_str_like! { Path, PathBuf }
-impl_str_like! { OsStr, OsString }
+impl_str_like! { ArcCow, str, String }
+impl_str_like! { ArcCow, Path, PathBuf }
+impl_str_like! { ArcCow, OsStr, OsString }
