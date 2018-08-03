@@ -71,8 +71,8 @@ where
     /// This clones the value if necessary.
     pub fn into_shared(self) -> Arc<B> {
         match self {
-            ArcCow::Borrowed(borrowed) => Arc::from(borrowed),
-            ArcCow::Owned(owned) => Arc::from(owned),
+            ArcCow::Borrowed(borrowed) => From::from(borrowed),
+            ArcCow::Owned(owned) => From::from(owned),
             ArcCow::Shared(shared) => shared,
         }
     }
@@ -90,7 +90,7 @@ where
         match self {
             ArcCow::Borrowed(borrowed) => (*borrowed).into(),
             ArcCow::Owned(owned) => owned.borrow().into(),
-            ArcCow::Shared(shared) => Arc::clone(shared),
+            ArcCow::Shared(shared) => Clone::clone(shared),
         }
     }
 }
@@ -157,7 +157,7 @@ where
         match self {
             ArcCow::Borrowed(b) => ArcCow::Borrowed(b),
             ArcCow::Owned(o) => ArcCow::Owned(o.borrow().to_owned()),
-            ArcCow::Shared(s) => ArcCow::Shared(Arc::clone(s)),
+            ArcCow::Shared(s) => ArcCow::Shared(Clone::clone(s)),
         }
     }
 }
