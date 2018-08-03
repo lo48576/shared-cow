@@ -112,9 +112,9 @@ macro_rules! impl_cmp {
 }
 
 macro_rules! def_shared_cow {
-    ($(#[$meta:meta])* def $cow:ident<$typ:ident>($rc:ty);) => {
+    ($(#[$meta:meta])* $vis:vis def $cow:ident<$typ:ident>($rc:ty);) => {
         $(#[$meta])*
-        pub enum $cow<'a, $typ>
+        $vis enum $cow<'a, $typ>
         where
             $typ: 'a + ToOwned + ?Sized,
         {
@@ -212,7 +212,7 @@ macro_rules! impl_cow_to_shared {
 
 def_shared_cow! {
     #[doc = "`Cow` with variant with shared `Arc` data."]
-    def ArcCow<B>(Arc<B>);
+    pub def ArcCow<B>(Arc<B>);
 }
 impl_cow_basic! { ArcCow<B>(Arc<B>) }
 impl_cow_to_shared! { ArcCow<B>(Arc<B>) }
