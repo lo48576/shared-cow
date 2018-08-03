@@ -10,8 +10,6 @@ use std::ops;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use self::ArcCow::*;
-
 /// `Cow` with variant with shared `Arc` data.
 pub enum ArcCow<'a, B>
 where
@@ -43,9 +41,9 @@ where
     /// This clones the value if necessary.
     pub fn into_owned(self) -> <B as ToOwned>::Owned {
         match self {
-            Borrowed(borrowed) => borrowed.to_owned(),
-            Owned(owned) => owned,
-            Shared(shared) => (*shared).to_owned(),
+            ArcCow::Borrowed(borrowed) => borrowed.to_owned(),
+            ArcCow::Owned(owned) => owned,
+            ArcCow::Shared(shared) => (*shared).to_owned(),
         }
     }
 
@@ -55,9 +53,9 @@ where
     /// This clones the value if necessary.
     #[allow(unknown_lints, wrong_self_convention)]
     pub fn to_mut(&mut self) -> &mut <B as ToOwned>::Owned {
-        *self = Owned(self.to_owned());
+        *self = ArcCow::Owned(self.to_owned());
         match *self {
-            Owned(ref mut owned) => owned,
+            ArcCow::Owned(ref mut owned) => owned,
             _ => unreachable!("Should never happen because `*self` must be `Owned` variant"),
         }
     }
@@ -73,9 +71,9 @@ where
     /// This clones the value if necessary.
     pub fn into_shared(self) -> Arc<B> {
         match self {
-            Borrowed(borrowed) => Arc::from(borrowed),
-            Owned(owned) => Arc::from(owned),
-            Shared(shared) => shared,
+            ArcCow::Borrowed(borrowed) => Arc::from(borrowed),
+            ArcCow::Owned(owned) => Arc::from(owned),
+            ArcCow::Shared(shared) => shared,
         }
     }
 }
@@ -90,9 +88,9 @@ where
     /// This always clones the value.
     pub fn to_shared(&self) -> Arc<B> {
         match self {
-            Borrowed(borrowed) => (*borrowed).into(),
-            Owned(owned) => owned.borrow().into(),
-            Shared(shared) => Arc::clone(shared),
+            ArcCow::Borrowed(borrowed) => (*borrowed).into(),
+            ArcCow::Owned(owned) => owned.borrow().into(),
+            ArcCow::Shared(shared) => Arc::clone(shared),
         }
     }
 }
@@ -102,7 +100,7 @@ where
     T: Clone,
 {
     fn from(v: &'a [T]) -> Self {
-        Borrowed(v)
+        ArcCow::Borrowed(v)
     }
 }
 
@@ -120,7 +118,7 @@ where
     T: Clone,
 {
     fn from(v: Vec<T>) -> Self {
-        Owned(v)
+        ArcCow::Owned(v)
     }
 }
 
@@ -129,7 +127,7 @@ where
     T: Clone,
 {
     fn from(v: &'a Vec<T>) -> Self {
-        Owned(v.clone())
+        ArcCow::Owned(v.clone())
     }
 }
 
@@ -157,9 +155,9 @@ where
 {
     fn clone(&self) -> Self {
         match self {
-            Borrowed(b) => Borrowed(b),
-            Owned(o) => Owned(o.borrow().to_owned()),
-            Shared(s) => Shared(Arc::clone(s)),
+            ArcCow::Borrowed(b) => ArcCow::Borrowed(b),
+            ArcCow::Owned(o) => ArcCow::Owned(o.borrow().to_owned()),
+            ArcCow::Shared(s) => ArcCow::Shared(Arc::clone(s)),
         }
     }
 }
@@ -190,19 +188,19 @@ where
 
 impl<'a> iter::FromIterator<char> for ArcCow<'a, str> {
     fn from_iter<I: IntoIterator<Item = char>>(iter: I) -> Self {
-        Owned(iter::FromIterator::from_iter(iter))
+        ArcCow::Owned(iter::FromIterator::from_iter(iter))
     }
 }
 
 impl<'a, 'b> iter::FromIterator<&'b str> for ArcCow<'a, str> {
     fn from_iter<I: IntoIterator<Item = &'b str>>(iter: I) -> Self {
-        Owned(iter::FromIterator::from_iter(iter))
+        ArcCow::Owned(iter::FromIterator::from_iter(iter))
     }
 }
 
 impl<'a> iter::FromIterator<String> for ArcCow<'a, str> {
     fn from_iter<I: IntoIterator<Item = String>>(iter: I) -> Self {
-        Owned(iter::FromIterator::from_iter(iter))
+        ArcCow::Owned(iter::FromIterator::from_iter(iter))
     }
 }
 
@@ -219,7 +217,7 @@ where
     T: Clone,
 {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        Owned(iter::FromIterator::from_iter(iter))
+        ArcCow::Owned(iter::FromIterator::from_iter(iter))
     }
 }
 
@@ -238,9 +236,9 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Borrowed(b) => fmt::Debug::fmt(b, f),
-            Owned(o) => fmt::Debug::fmt(o, f),
-            Shared(s) => fmt::Debug::fmt(s, f),
+            ArcCow::Borrowed(b) => fmt::Debug::fmt(b, f),
+            ArcCow::Owned(o) => fmt::Debug::fmt(o, f),
+            ArcCow::Shared(s) => fmt::Debug::fmt(s, f),
         }
     }
 }
@@ -252,9 +250,9 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Borrowed(b) => fmt::Display::fmt(b, f),
-            Owned(o) => fmt::Display::fmt(o, f),
-            Shared(s) => fmt::Display::fmt(s, f),
+            ArcCow::Borrowed(b) => fmt::Display::fmt(b, f),
+            ArcCow::Owned(o) => fmt::Display::fmt(o, f),
+            ArcCow::Shared(s) => fmt::Display::fmt(s, f),
         }
     }
 }
@@ -267,9 +265,9 @@ where
 
     fn deref(&self) -> &B {
         match self {
-            Borrowed(borrowed) => *borrowed,
-            Owned(owned) => owned.borrow(),
-            Shared(shared) => (**shared).borrow(),
+            ArcCow::Borrowed(borrowed) => *borrowed,
+            ArcCow::Owned(owned) => owned.borrow(),
+            ArcCow::Shared(shared) => (**shared).borrow(),
         }
     }
 }
@@ -280,7 +278,7 @@ where
     <B as ToOwned>::Owned: Default,
 {
     fn default() -> Self {
-        Owned(<B as ToOwned>::Owned::default())
+        ArcCow::Owned(<B as ToOwned>::Owned::default())
     }
 }
 
@@ -372,20 +370,20 @@ impl<'a> ops::Add<ArcCow<'a, str>> for ArcCow<'a, str> {
 impl<'a> ops::AddAssign<&'a str> for ArcCow<'a, str> {
     fn add_assign(&mut self, rhs: &'a str) {
         if self.is_empty() {
-            *self = Borrowed(rhs)
+            *self = ArcCow::Borrowed(rhs)
         } else if rhs.is_empty() {
             return;
         } else {
             match *self {
-                Borrowed(lhs) => {
+                ArcCow::Borrowed(lhs) => {
                     let mut s = String::with_capacity(rhs.len() + rhs.len());
                     s.push_str(lhs);
-                    *self = Owned(s)
+                    *self = ArcCow::Owned(s)
                 },
-                Shared(ref lhs) => {
+                ArcCow::Shared(ref lhs) => {
                     let mut s = String::with_capacity(rhs.len() + rhs.len());
                     s.push_str(lhs);
-                    *self = Owned(s)
+                    *self = ArcCow::Owned(s)
                 },
                 _ => {},
             }
@@ -402,15 +400,15 @@ impl<'a> ops::AddAssign<ArcCow<'a, str>> for ArcCow<'a, str> {
             return;
         } else {
             match *self {
-                Borrowed(lhs) => {
+                ArcCow::Borrowed(lhs) => {
                     let mut s = String::with_capacity(rhs.len() + rhs.len());
                     s.push_str(lhs);
-                    *self = Owned(s)
+                    *self = ArcCow::Owned(s)
                 },
-                Shared(ref lhs) => {
+                ArcCow::Shared(ref lhs) => {
                     let mut s = String::with_capacity(rhs.len() + rhs.len());
                     s.push_str(lhs);
-                    *self = Owned(s)
+                    *self = ArcCow::Owned(s)
                 },
                 _ => {},
             }
@@ -423,25 +421,25 @@ macro_rules! impl_str_like {
     ($borrowed:ty, $owned:ty) => {
         impl<'a> From<&'a $borrowed> for ArcCow<'a, $borrowed> {
             fn from(s: &'a $borrowed) -> Self {
-                Borrowed(s)
+                ArcCow::Borrowed(s)
             }
         }
 
         impl<'a> From<$owned> for ArcCow<'a, $borrowed> {
             fn from(s: $owned) -> Self {
-                Owned(s)
+                ArcCow::Owned(s)
             }
         }
 
         impl<'a> From<&'a $owned> for ArcCow<'a, $borrowed> {
             fn from(s: &'a $owned) -> Self {
-                Owned(s.clone())
+                ArcCow::Owned(s.clone())
             }
         }
 
         impl<'a> From<Arc<$borrowed>> for ArcCow<'a, $borrowed> {
             fn from(s: Arc<$borrowed>) -> Self {
-                Shared(s)
+                ArcCow::Shared(s)
             }
         }
 
