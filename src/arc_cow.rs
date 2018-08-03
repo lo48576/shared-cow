@@ -10,6 +10,107 @@ use std::ops;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+// See <https://github.com/rust-lang/rust/blob/1.27.2/src/liballoc/vec.rs#L2097>.
+macro_rules! impl_eq_slice {
+    ($lhs:ty, $rhs:ty) => {
+        impl_eq_slice! { $lhs, $rhs, Sized }
+    };
+    ($lhs:ty, $rhs:ty, $bound:ident) => {
+        impl<'a, 'b, A, B> PartialEq<$rhs> for $lhs
+        where
+            A: $bound + PartialEq<B>,
+        {
+            #[inline]
+            fn eq(&self, other: &$rhs) -> bool {
+                self[..] == other[..]
+            }
+        }
+    };
+}
+
+macro_rules! impl_str_like {
+    ($borrowed:ty, $owned:ty) => {
+        impl<'a> From<&'a $borrowed> for ArcCow<'a, $borrowed> {
+            fn from(s: &'a $borrowed) -> Self {
+                ArcCow::Borrowed(s)
+            }
+        }
+
+        impl<'a> From<$owned> for ArcCow<'a, $borrowed> {
+            fn from(s: $owned) -> Self {
+                ArcCow::Owned(s)
+            }
+        }
+
+        impl<'a> From<&'a $owned> for ArcCow<'a, $borrowed> {
+            fn from(s: &'a $owned) -> Self {
+                ArcCow::Owned(s.clone())
+            }
+        }
+
+        impl<'a> From<Arc<$borrowed>> for ArcCow<'a, $borrowed> {
+            fn from(s: Arc<$borrowed>) -> Self {
+                ArcCow::Shared(s)
+            }
+        }
+
+        impl<'a> Into<$owned> for ArcCow<'a, $borrowed> {
+            fn into(self) -> $owned {
+                self.into_owned()
+            }
+        }
+
+        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, $borrowed }
+        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, &'b $borrowed }
+        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, $owned }
+        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, &'b $owned }
+        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, Cow<'b, $borrowed> }
+    };
+}
+
+macro_rules! impl_eq {
+    ($lhs:ty, $rhs:ty) => {
+        impl<'a, 'b> PartialEq<$rhs> for $lhs {
+            #[inline]
+            fn eq(&self, other: &$rhs) -> bool {
+                self == other
+            }
+        }
+
+        impl<'a, 'b> PartialEq<$lhs> for $rhs {
+            #[inline]
+            fn eq(&self, other: &$lhs) -> bool {
+                self == other
+            }
+        }
+    };
+}
+
+macro_rules! impl_partial_ord {
+    ($base: ty, $lhs:ty, $rhs:ty) => {
+        impl<'a, 'b> PartialOrd<$rhs> for $lhs {
+            #[inline]
+            fn partial_cmp(&self, other: &$rhs) -> Option<Ordering> {
+                <$base as PartialOrd>::partial_cmp(self, other)
+            }
+        }
+
+        impl<'a, 'b> PartialOrd<$lhs> for $rhs {
+            #[inline]
+            fn partial_cmp(&self, other: &$lhs) -> Option<Ordering> {
+                <$base as PartialOrd>::partial_cmp(self, other)
+            }
+        }
+    };
+}
+
+macro_rules! impl_cmp {
+    ($base: ty, $lhs:ty, $rhs:ty) => {
+        impl_eq! { $lhs, $rhs }
+        impl_partial_ord! { $base, $lhs, $rhs }
+    };
+}
+
 /// `Cow` with variant with shared `Arc` data.
 pub enum ArcCow<'a, B>
 where
@@ -293,24 +394,6 @@ where
     }
 }
 
-// See <https://github.com/rust-lang/rust/blob/1.27.2/src/liballoc/vec.rs#L2097>.
-macro_rules! impl_eq_slice {
-    ($lhs:ty, $rhs:ty) => {
-        impl_eq_slice! { $lhs, $rhs, Sized }
-    };
-    ($lhs:ty, $rhs:ty, $bound:ident) => {
-        impl<'a, 'b, A, B> PartialEq<$rhs> for $lhs
-        where
-            A: $bound + PartialEq<B>,
-        {
-            #[inline]
-            fn eq(&self, other: &$rhs) -> bool {
-                self[..] == other[..]
-            }
-        }
-    };
-}
-
 impl_eq_slice! { ArcCow<'a, [A]>, &'b [B], Clone }
 impl_eq_slice! { ArcCow<'a, [A]>, &'b mut [B], Clone }
 impl_eq_slice! { ArcCow<'a, [A]>, Vec<B>, Clone }
@@ -415,89 +498,6 @@ impl<'a> ops::AddAssign<ArcCow<'a, str>> for ArcCow<'a, str> {
             self.to_mut().push_str(&rhs);
         }
     }
-}
-
-macro_rules! impl_str_like {
-    ($borrowed:ty, $owned:ty) => {
-        impl<'a> From<&'a $borrowed> for ArcCow<'a, $borrowed> {
-            fn from(s: &'a $borrowed) -> Self {
-                ArcCow::Borrowed(s)
-            }
-        }
-
-        impl<'a> From<$owned> for ArcCow<'a, $borrowed> {
-            fn from(s: $owned) -> Self {
-                ArcCow::Owned(s)
-            }
-        }
-
-        impl<'a> From<&'a $owned> for ArcCow<'a, $borrowed> {
-            fn from(s: &'a $owned) -> Self {
-                ArcCow::Owned(s.clone())
-            }
-        }
-
-        impl<'a> From<Arc<$borrowed>> for ArcCow<'a, $borrowed> {
-            fn from(s: Arc<$borrowed>) -> Self {
-                ArcCow::Shared(s)
-            }
-        }
-
-        impl<'a> Into<$owned> for ArcCow<'a, $borrowed> {
-            fn into(self) -> $owned {
-                self.into_owned()
-            }
-        }
-
-        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, $borrowed }
-        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, &'b $borrowed }
-        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, $owned }
-        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, &'b $owned }
-        impl_cmp! { $borrowed, ArcCow<'a, $borrowed>, Cow<'b, $borrowed> }
-    };
-}
-
-macro_rules! impl_eq {
-    ($lhs:ty, $rhs:ty) => {
-        impl<'a, 'b> PartialEq<$rhs> for $lhs {
-            #[inline]
-            fn eq(&self, other: &$rhs) -> bool {
-                self == other
-            }
-        }
-
-        impl<'a, 'b> PartialEq<$lhs> for $rhs {
-            #[inline]
-            fn eq(&self, other: &$lhs) -> bool {
-                self == other
-            }
-        }
-    };
-}
-
-macro_rules! impl_partial_ord {
-    ($base: ty, $lhs:ty, $rhs:ty) => {
-        impl<'a, 'b> PartialOrd<$rhs> for $lhs {
-            #[inline]
-            fn partial_cmp(&self, other: &$rhs) -> Option<Ordering> {
-                <$base as PartialOrd>::partial_cmp(self, other)
-            }
-        }
-
-        impl<'a, 'b> PartialOrd<$lhs> for $rhs {
-            #[inline]
-            fn partial_cmp(&self, other: &$lhs) -> Option<Ordering> {
-                <$base as PartialOrd>::partial_cmp(self, other)
-            }
-        }
-    };
-}
-
-macro_rules! impl_cmp {
-    ($base: ty, $lhs:ty, $rhs:ty) => {
-        impl_eq! { $lhs, $rhs }
-        impl_partial_ord! { $base, $lhs, $rhs }
-    };
 }
 
 impl_str_like! { str, String }
