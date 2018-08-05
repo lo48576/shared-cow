@@ -286,6 +286,35 @@ macro_rules! impl_cow_std_traits {
             }
         }
 
+        impl<'a, B> Into<std::borrow::Cow<'a, B>> for $cow<'a, B>
+        where
+            B: ?Sized + ToOwned,
+        {
+            fn into(self) -> std::borrow::Cow<'a, B> {
+                use std::borrow::Borrow;
+                match self {
+                    $cow::Borrowed(b) => std::borrow::Cow::Borrowed(b),
+                    $cow::Owned(b) => std::borrow::Cow::Owned(b),
+                    $cow::Shared(s) => {
+                        let b: &B = s.borrow();
+                        std::borrow::Cow::Owned(b.to_owned())
+                    },
+                }
+            }
+        }
+
+        impl<'a, B> From<std::borrow::Cow<'a, B>> for $cow<'a, B>
+        where
+            B: ?Sized + ToOwned,
+        {
+            fn from(cow: std::borrow::Cow<'a, B>) -> Self {
+                match cow {
+                    std::borrow::Cow::Borrowed(b) => $cow::Borrowed(b),
+                    std::borrow::Cow::Owned(o) => $cow::Owned(o),
+                }
+            }
+        }
+
         impl<'a, B> std::hash::Hash for $cow<'a, B>
         where
             B: ?Sized + std::hash::Hash + ToOwned,
