@@ -127,6 +127,7 @@ macro_rules! impl_cow_basic {
             /// Creates a new owned value.
             ///
             /// This always clones the value.
+            #[must_use]
             pub fn to_owned(&self) -> <$typ as ToOwned>::Owned {
                 use std::borrow::Borrow;
                 let b: &$typ = self.borrow();
@@ -137,6 +138,7 @@ macro_rules! impl_cow_basic {
             ///
             /// This behaves like [`Cow::into_owned`][`std::borrow::Cow::into_owned`].
             /// This clones the value if necessary.
+            #[must_use]
             pub fn into_owned(self) -> <$typ as ToOwned>::Owned {
                 match self {
                     $cow::Borrowed(borrowed) => borrowed.to_owned(),
@@ -173,6 +175,7 @@ macro_rules! impl_cow_to_shared {
             /// Creates a new shared value.
             ///
             /// This clones the value if necessary.
+            #[must_use]
             pub fn into_shared(self) -> $rc {
                 match self {
                     $cow::Borrowed(borrowed) => From::from(borrowed),
@@ -190,6 +193,7 @@ macro_rules! impl_cow_to_shared {
             /// Creates a new shared value.
             ///
             /// This always clones the value.
+            #[must_use]
             pub fn to_shared(&self) -> $rc {
                 use std::borrow::Borrow;
                 match self {

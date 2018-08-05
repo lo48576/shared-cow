@@ -20,6 +20,7 @@ where
     for<'b> &'b B: Into<Rc<B>>,
 {
     /// Creates an [`RcCow`] value.
+    #[must_use]
     pub fn to_rccow(&self) -> RcCow<'a, B> {
         use std::borrow::Borrow;
         match *self {

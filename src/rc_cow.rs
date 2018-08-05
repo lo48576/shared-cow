@@ -20,6 +20,7 @@ where
     for<'b> &'b B: Into<Arc<B>>,
 {
     /// Creates an [`ArcCow`] value.
+    #[must_use]
     pub fn to_arccow(&self) -> ArcCow<'a, B> {
         use std::borrow::Borrow;
         match *self {
