@@ -198,6 +198,21 @@ macro_rules! impl_cow_to_shared {
                     $cow::Shared(shared) => Clone::clone(shared),
                 }
             }
+
+            /// Turns `self` into `Borrowed` or `Shared` variant.
+            ///
+            /// This may clone the value if necessary.
+            pub fn share(&mut self) -> &mut $cow<'a, $typ> {
+                use std::borrow::Borrow;
+                // It is perfect if I can do `*self = $cow::Shared(o.into())`
+                // for `if let $cow::Owned(o) = *self`, but it is unable in safe
+                // manner.
+                if let $cow::Owned(ref o) = *self {
+                    let b: &B = o.borrow();
+                    *self = $cow::Shared(b.into())
+                }
+                self
+            }
         }
     };
 }
